@@ -1,0 +1,29 @@
+{
+  "keywords": [
+    "aiuto",
+    "aiutami",
+    "aiutami",
+    "soccorso",
+    "emergenza",
+    "help",
+    "help me",
+    "emergency",
+    "danger",
+    "secours",
+    "au secours",
+    "aide",
+    "urgence",
+    "hilfe",
+    "hilfe mir",
+    "notfall",
+    "notruf"
+  ],
+  "model_path": "models/vosk-model-small-it-0.22",
+  "device_id": -1,
+  "sample_rate": 16000,
+  "log_file": "logs/help-alarm.log",
+  "alert_log_file": "logs/help-alarm-alerts.log",
+  "log_level": "info",
+  "log_transcriptions": true,
+  "cooldown_seconds": 3
+}

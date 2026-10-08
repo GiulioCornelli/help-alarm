@@ -1,0 +1,45 @@
+services:
+  help-alarm:
+    build:
+      context: .
+    image: help-alarm:latest
+    container_name: help-alarm
+
+    # I dispositivi ALSA dell'host: senza questi dentro il container non
+    # esiste alcun microfono. Vengono rilassati come permessi, non copiati.
+    devices:
+      - "/dev/snd:/dev/snd"
+
+    # I device node di /dev/snd appartengono a root:<gruppo audio>. Serve
+    # aggiungere quel gruppo, altrimenti l'apertura del microfono fallisce
+    # con "permission denied".
+    # Ricava il gid con:  getent group audio | cut -d: -f3
+    group_add:
+      - "${AUDIO_GID:-29}"
+
+    # Un volume vuoto viene creato da Docker con proprietà root e modalità 755,
+    # quindi l'utente non-root del programma non potrebbe scrivere i log.
+    # Qui il container parte come root per poter usare il volume; l'unico
+    # scritturo è il programma, e non ha mount della socket Docker.
+    user: "0:0"
+
+    volumes:
+      # Configurazione: modificabile dall'host senza ricostruire l'immagine.
+      # Solo lettura perché il programma non deve modificarla.
+      - ./config.json:/app/config.json:ro
+      # Log in un volume gestito da Docker, non nella cartella del progetto.
+      # Niente ":ro": il programma ci scrive dentro.
+      - logs:/app/logs
+
+    # Riparte da solo dopo un riavvio della macchina, utile se in futuro
+    # il programma controllerà l'accensione di una luce.
+    # restart: unless-stopped
+
+    # Ctrl+C e `docker compose stop` devono arrivare al programma, che spegne
+    # audio e log in modo ordinato.
+    stop_signal: SIGTERM
+    stop_grace_period: 10s
+
+volumes:
+  logs:
+    driver: local

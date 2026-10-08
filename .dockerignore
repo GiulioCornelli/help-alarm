@@ -1,0 +1,16 @@
+# Non servono dentro l'immagine: si ricreano dal Dockerfile o si montano.
+models/
+third_party/
+logs/
+
+# Binario compilato localmente, quando si usa "make build".
+help-alarm
+
+# Artefatti di Git e file di sviluppo.
+.git/
+.gitignore
+*.md
+!README.md
+
+# La configurazione viene montata dal compose, non copiata nell'immagine.
+config.json
