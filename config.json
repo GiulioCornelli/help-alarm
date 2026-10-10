@@ -2,19 +2,7 @@
   "cameras": [
     {
       "name": "cam1",
-      "url": "rtsp://utente:password@192.168.1.101:554/stream1"
-    },
-    {
-      "name": "cam2",
-      "url": "rtsp://utente:password@192.168.1.102:554/stream1"
-    },
-    {
-      "name": "cam3",
-      "url": "rtsp://utente:password@192.168.1.103:554/stream1"
-    },
-    {
-      "name": "cam4",
-      "url": "rtsp://utente:password@192.168.1.104:554/stream1"
+      "url": "rtsp://admin:.cg7CGPkYcbkMcq@192.168.1.24"
     }
   ],
   "keywords": [
