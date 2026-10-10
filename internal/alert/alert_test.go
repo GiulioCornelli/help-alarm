@@ -20,12 +20,12 @@ func TestTriggerPrintsAndLogs(t *testing.T) {
 	terminal := NewTerminal(out, log)
 
 	at := time.Date(2026, 9, 29, 14, 5, 6, 0, time.UTC)
-	err := terminal.Trigger(Event{Keyword: "aiuto", At: at})
+	err := terminal.Trigger(Event{Keyword: "aiuto", Camera: "ingresso", Host: "192.168.1.10", At: at})
 	if err != nil {
 		t.Fatalf("Trigger: %v", err)
 	}
 
-	const want = "aiuto rilevato, luce accesa"
+	const want = "aiuto rilevato da ingresso (192.168.1.10), luce accesa"
 
 	if !strings.Contains(out.String(), want) {
 		t.Errorf("il terminale non contiene %q, output: %q", want, out.String())
@@ -44,6 +44,12 @@ func TestTriggerPrintsAndLogs(t *testing.T) {
 	if rec["keyword"] != "aiuto" {
 		t.Errorf("keyword = %v, atteso \"aiuto\"", rec["keyword"])
 	}
+	if rec["camera"] != "ingresso" {
+		t.Errorf("camera = %v, atteso \"ingresso\"", rec["camera"])
+	}
+	if rec["camera_ip"] != "192.168.1.10" {
+		t.Errorf("camera_ip = %v, atteso \"192.168.1.10\"", rec["camera_ip"])
+	}
 	if _, ok := rec["time"]; !ok {
 		t.Error("il record di log non ha il timestamp")
 	}
@@ -59,7 +65,7 @@ func TestTriggerLogsOnlyTheKeyword(t *testing.T) {
 	log, logBuf := newTestLogger()
 	terminal := NewTerminal(&bytes.Buffer{}, log)
 
-	if err := terminal.Trigger(Event{Keyword: "soccorso"}); err != nil {
+	if err := terminal.Trigger(Event{Keyword: "soccorso", Camera: "cortile", Host: "10.0.0.5"}); err != nil {
 		t.Fatalf("Trigger: %v", err)
 	}
 
@@ -69,10 +75,10 @@ func TestTriggerLogsOnlyTheKeyword(t *testing.T) {
 	}
 
 	// Nessun campo può contenere testo libero: ogni chiave deve essere una
-	// delle quattro ammesse.
+	// di quelle ammesse.
 	for k, v := range rec {
 		switch k {
-		case "time", "timestamp", "keyword", "msg", "level":
+		case "time", "timestamp", "keyword", "camera", "camera_ip", "msg", "level":
 		default:
 			t.Errorf("il record di allarme ha il campo inatteso %q = %v", k, v)
 		}
@@ -90,10 +96,10 @@ func TestTriggerNamesTheKeyword(t *testing.T) {
 		out := &bytes.Buffer{}
 		terminal := NewTerminal(out, log)
 
-		if err := terminal.Trigger(Event{Keyword: keyword}); err != nil {
+		if err := terminal.Trigger(Event{Keyword: keyword, Camera: "ingresso"}); err != nil {
 			t.Fatalf("Trigger(%q): %v", keyword, err)
 		}
-		want := keyword + " rilevato, luce accesa"
+		want := keyword + " rilevato da ingresso, luce accesa"
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("con %q il terminale mostra %q, atteso %q", keyword, out.String(), want)
 		}

@@ -41,8 +41,8 @@ func TestParseTextInvalid(t *testing.T) {
 	}
 }
 
-func TestOpenMissingModel(t *testing.T) {
-	if _, err := Open(t.TempDir()); err == nil {
-		t.Error("Open ha accettato una directory senza modello")
+func TestLoadModelMissing(t *testing.T) {
+	if _, err := LoadModel(t.TempDir()); err == nil {
+		t.Error("LoadModel ha accettato una directory senza modello")
 	}
 }

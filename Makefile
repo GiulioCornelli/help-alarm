@@ -20,7 +20,7 @@ RM_BIN     := rm -f $(BIN)
 export CGO_CFLAGS
 export CGO_LDFLAGS
 
-.PHONY: all setup build run devices test fmt vet clean \
+.PHONY: all setup build run test fmt vet clean \
 	docker-build docker-up docker-down docker-logs
 
 all: build
@@ -33,11 +33,11 @@ build:
 	go build -trimpath -ldflags "-s -w" -o $(BIN) .
 	@echo "[ok] eseguibile in $(BIN)"
 
+# ffmpeg è installato solo nell'immagine Docker: fuori dal container il
+# programma si ferma subito con un errore esplicito. Per l'esecuzione usare
+# "make docker-up"; build e test locali funzionano senza ffmpeg.
 run: build
 	./$(BIN) -config config.json
-
-devices: build
-	./$(BIN) -devices
 
 test:
 	go test ./...

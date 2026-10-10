@@ -14,7 +14,7 @@ func TestCooldownSuppressesBurst(t *testing.T) {
 	// aspettiamo un solo allarme.
 	fired := 0
 	for i := 0; i < 10; i++ {
-		if c.Allow("aiuto", base.Add(time.Duration(i)*100*time.Millisecond)) {
+		if c.Allow("ingresso", "aiuto", base.Add(time.Duration(i)*100*time.Millisecond)) {
 			fired++
 		}
 	}
@@ -28,13 +28,13 @@ func TestCooldownSuppressesBurst(t *testing.T) {
 func TestCooldownAllowsRepeatedUtterance(t *testing.T) {
 	c := NewCooldown(3 * time.Second)
 
-	if !c.Allow("aiuto", base) {
+	if !c.Allow("ingresso", "aiuto", base) {
 		t.Fatal("il primo match deve passare")
 	}
-	if c.Allow("aiuto", base.Add(2*time.Second)) {
+	if c.Allow("ingresso", "aiuto", base.Add(2*time.Second)) {
 		t.Error("un match entro la finestra deve essere soppresso")
 	}
-	if !c.Allow("aiuto", base.Add(4*time.Second)) {
+	if !c.Allow("ingresso", "aiuto", base.Add(4*time.Second)) {
 		t.Error("un match dopo la finestra deve passare")
 	}
 }
@@ -42,11 +42,11 @@ func TestCooldownAllowsRepeatedUtterance(t *testing.T) {
 func TestCooldownIsPerKeyword(t *testing.T) {
 	c := NewCooldown(3 * time.Second)
 
-	if !c.Allow("aiuto", base) {
+	if !c.Allow("ingresso", "aiuto", base) {
 		t.Fatal("il primo match deve passare")
 	}
 	// Una parola chiave diversa non deve essere bloccata da "aiuto".
-	if !c.Allow("soccorso", base.Add(time.Second)) {
+	if !c.Allow("ingresso", "soccorso", base.Add(time.Second)) {
 		t.Error("una parola chiave diversa deve passare comunque")
 	}
 }
@@ -55,7 +55,7 @@ func TestCooldownZeroDisables(t *testing.T) {
 	for _, window := range []time.Duration{0, -time.Second} {
 		c := NewCooldown(window)
 		for i := 0; i < 5; i++ {
-			if !c.Allow("aiuto", base) {
+			if !c.Allow("ingresso", "aiuto", base) {
 				t.Fatalf("con cooldown %v ogni match deve passare", window)
 			}
 		}
@@ -65,10 +65,26 @@ func TestCooldownZeroDisables(t *testing.T) {
 func TestCooldownDoesNotDrift(t *testing.T) {
 	// Il tempo fornito è sempre monotono: Allow non deve usare time.Now().
 	c := NewCooldown(time.Second)
-	if !c.Allow("aiuto", base) {
+	if !c.Allow("ingresso", "aiuto", base) {
 		t.Fatal("il primo match deve passare")
 	}
-	if !c.Allow("aiuto", base.Add(1500*time.Millisecond)) {
+	if !c.Allow("ingresso", "aiuto", base.Add(1500*time.Millisecond)) {
 		t.Error("match dopo 1.5s con cooldown 1s deve passare")
+	}
+}
+
+// TestCooldownIsPerCamera verifica che la stessa parola sentita da due
+// telecamere diverse produca due allarmi.
+func TestCooldownIsPerCamera(t *testing.T) {
+	c := NewCooldown(3 * time.Second)
+
+	if !c.Allow("ingresso", "aiuto", base) {
+		t.Fatal("il primo match deve passare")
+	}
+	if !c.Allow("cortile", "aiuto", base.Add(time.Second)) {
+		t.Error("la stessa parola su un'altra telecamera deve passare")
+	}
+	if c.Allow("ingresso", "aiuto", base.Add(2*time.Second)) {
+		t.Error("la stessa parola sulla stessa telecamera entro la finestra deve essere soppressa")
 	}
 }

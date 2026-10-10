@@ -1,7 +1,24 @@
 {
+  "cameras": [
+    {
+      "name": "cam1",
+      "url": "rtsp://utente:password@192.168.1.101:554/stream1"
+    },
+    {
+      "name": "cam2",
+      "url": "rtsp://utente:password@192.168.1.102:554/stream1"
+    },
+    {
+      "name": "cam3",
+      "url": "rtsp://utente:password@192.168.1.103:554/stream1"
+    },
+    {
+      "name": "cam4",
+      "url": "rtsp://utente:password@192.168.1.104:554/stream1"
+    }
+  ],
   "keywords": [
     "aiuto",
-    "aiutami",
     "aiutami",
     "soccorso",
     "emergenza",
@@ -19,7 +36,6 @@
     "notruf"
   ],
   "model_path": "models/vosk-model-small-it-0.22",
-  "device_id": -1,
   "sample_rate": 16000,
   "log_file": "logs/help-alarm.log",
   "alert_log_file": "logs/help-alarm-alerts.log",

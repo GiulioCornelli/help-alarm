@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,9 +17,9 @@ type Config struct {
 	Keywords []string `json:"keywords"`
 	// ModelPath è la cartella del modello acustico Vosk.
 	ModelPath string `json:"model_path"`
-	// DeviceID indica il dispositivo di cattura. -1 significa "quello
-	// predefinito di sistema".
-	DeviceID int `json:"device_id"`
+	// Cameras sono le telecamere IP da ascoltare, ognuna con la propria
+	// catena di trascrizione.
+	Cameras []Camera `json:"cameras"`
 	// SampleRate in Hz. Vosk richiede 16000.
 	SampleRate int `json:"sample_rate"`
 	// LogFile è il percorso del file di log strutturato con i messaggi
@@ -41,6 +42,17 @@ type Config struct {
 	dir string
 }
 
+// Camera è una telecamera IP di cui ascoltare l'audio.
+type Camera struct {
+	// Name identifica la telecamera nei log e negli allarmi. Deve essere
+	// unico.
+	Name string `json:"name"`
+	// URL è l'indirizzo RTSP dello stream, con le eventuali credenziali,
+	// per esempio rtsp://utente:password@192.168.1.10:554/stream1. Non viene
+	// mai scritto nei log: compaiono solo Name e l'host.
+	URL string `json:"url"`
+}
+
 const voskSampleRate = 16000
 
 // Load legge e valida la configurazione contenuta nel file path.
@@ -52,7 +64,6 @@ func Load(path string) (*Config, error) {
 
 	cfg := &Config{
 		ModelPath:         "models/vosk-model-small-it-0.22",
-		DeviceID:          -1,
 		SampleRate:        voskSampleRate,
 		LogFile:           "logs/help-alarm.log",
 		AlertLogFile:      "logs/help-alarm-alerts.log",
@@ -95,6 +106,10 @@ func (c *Config) normalize() error {
 	}
 	c.Keywords = keywords
 
+	if err := c.normalizeCameras(); err != nil {
+		return err
+	}
+
 	if c.SampleRate != voskSampleRate {
 		return fmt.Errorf("config non valido: sample_rate deve essere %d (richiesto da Vosk), trovato %d", voskSampleRate, c.SampleRate)
 	}
@@ -120,6 +135,40 @@ func (c *Config) normalize() error {
 	c.AlertLogFile = strings.TrimSpace(c.AlertLogFile)
 	if c.AlertLogFile != "" {
 		c.AlertLogFile = c.resolve(c.AlertLogFile)
+	}
+	return nil
+}
+
+// normalizeCameras verifica l'elenco delle telecamere. I messaggi di errore
+// citano la telecamera per nome o posizione, mai per URL: l'URL può
+// contenere la password.
+func (c *Config) normalizeCameras() error {
+	if len(c.Cameras) == 0 {
+		return fmt.Errorf("config non valido: \"cameras\" deve contenere almeno una telecamera")
+	}
+	seen := make(map[string]struct{}, len(c.Cameras))
+	for i := range c.Cameras {
+		cam := &c.Cameras[i]
+		cam.Name = strings.TrimSpace(cam.Name)
+		cam.URL = strings.TrimSpace(cam.URL)
+		if cam.Name == "" {
+			return fmt.Errorf("config non valido: la telecamera n. %d non ha \"name\"", i+1)
+		}
+		if _, dup := seen[cam.Name]; dup {
+			return fmt.Errorf("config non valido: il nome di telecamera %q è usato più volte", cam.Name)
+		}
+		seen[cam.Name] = struct{}{}
+
+		u, err := url.Parse(cam.URL)
+		if err != nil || cam.URL == "" {
+			return fmt.Errorf("config non valido: telecamera %q, \"url\" mancante o non valido", cam.Name)
+		}
+		if u.Scheme != "rtsp" && u.Scheme != "rtsps" {
+			return fmt.Errorf("config non valido: telecamera %q, \"url\" deve iniziare con rtsp:// o rtsps://", cam.Name)
+		}
+		if u.Hostname() == "" {
+			return fmt.Errorf("config non valido: telecamera %q, \"url\" senza indirizzo", cam.Name)
+		}
 	}
 	return nil
 }

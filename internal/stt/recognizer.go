@@ -26,16 +26,17 @@ type Result struct {
 	Partial string `json:"partial"`
 }
 
-// Recognizer avvolge un modello Vosk e trasforma PCM grezzi in Phrase.
-// Non è sicuro per l'uso concorrente: ne possiede una sola goroutine.
-type Recognizer struct {
+// Model è il modello acustico Vosk. Si carica una volta sola ed è condiviso
+// da tutti i Recognizer, uno per telecamera: è la parte pesante in memoria,
+// e Vosk ne permette l'uso da più recognizer in parallelo.
+type Model struct {
 	model *vosk.VoskModel
-	rec   *vosk.VoskRecognizer
 }
 
-// Open carica il modello Vosk situato in modelPath. La cartella deve contenere
-// i file prodotti dagli archivi vosk-model-small-it-* (am/, conf/, graph/).
-func Open(modelPath string) (*Recognizer, error) {
+// LoadModel carica il modello Vosk situato in modelPath. La cartella deve
+// contenere i file prodotti dagli archivi vosk-model-small-it-* (am/, conf/,
+// graph/).
+func LoadModel(modelPath string) (*Model, error) {
 	if err := checkModel(modelPath); err != nil {
 		return nil, err
 	}
@@ -48,14 +49,32 @@ func Open(modelPath string) (*Recognizer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("stt: caricamento modello Vosk fallito: %w", err)
 	}
+	return &Model{model: model}, nil
+}
 
-	rec, err := vosk.NewRecognizer(model, 16000.0)
+// Close libera il modello. Va chiamata dopo aver chiuso ogni Recognizer che
+// lo usa. Si può chiamare più di una volta.
+func (m *Model) Close() {
+	if m.model != nil {
+		m.model.Free()
+		m.model = nil
+	}
+}
+
+// Recognizer trasforma PCM grezzi in Phrase usando un Model condiviso.
+// Non è sicuro per l'uso concorrente: ne possiede una sola goroutine, e ogni
+// telecamera ha il proprio, perché tiene lo stato della frase in corso.
+type Recognizer struct {
+	rec *vosk.VoskRecognizer
+}
+
+// NewRecognizer crea un riconoscitore a 16 kHz sul modello indicato.
+func NewRecognizer(m *Model) (*Recognizer, error) {
+	rec, err := vosk.NewRecognizer(m.model, 16000.0)
 	if err != nil {
-		model.Free()
 		return nil, fmt.Errorf("stt: creazione recognizer fallita: %w", err)
 	}
-
-	return &Recognizer{model: model, rec: rec}, nil
+	return &Recognizer{rec: rec}, nil
 }
 
 func checkModel(modelPath string) error {
@@ -106,15 +125,12 @@ func (r *Recognizer) Flush() (Phrase, error) {
 	return Phrase{Text: text}, nil
 }
 
-// Close libera le risorse native. Si può chiamare più di una volta.
+// Close libera le risorse native del riconoscitore, non il modello. Si può
+// chiamare più di una volta.
 func (r *Recognizer) Close() {
 	if r.rec != nil {
 		r.rec.Free()
 		r.rec = nil
-	}
-	if r.model != nil {
-		r.model.Free()
-		r.model = nil
 	}
 }
 

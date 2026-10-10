@@ -5,8 +5,10 @@
 #   libreria : third_party/vosk/{libvosk.so,vosk_api.h}
 #   modello  : models/vosk-model-small-it-0.22/
 #
-# Serve solo se NON si usa Docker: chi lancia "docker compose up" non ha
-# bisogno di questo script, perché l'immagine contiene già tutto.
+# Serve solo per compilare e testare in locale: chi lancia "docker compose up"
+# non ha bisogno di questo script, perché l'immagine contiene già tutto.
+# ffmpeg non viene scaricato: vive solo nell'immagine Docker, quindi il
+# programma si esegue con Docker.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -76,5 +78,5 @@ else
 fi
 
 echo
-echo "Fatto. Compila con: make run"
-echo "In alternativa, senza dipendenze locali:  docker compose up -d"
+echo "Fatto. Compila e testa con: make build && make test"
+echo "Per eseguire il programma (ffmpeg è nell'immagine):  docker compose up -d"

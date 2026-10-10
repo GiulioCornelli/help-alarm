@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,6 +20,10 @@ func writeConfig(t *testing.T, body string) string {
 
 func TestLoadValid(t *testing.T) {
 	path := writeConfig(t, `{
+		"cameras": [
+			{"name": " ingresso ", "url": "rtsp://admin:pwd@192.168.1.10:554/stream1"},
+			{"name": "cortile", "url": "rtsps://cortile.lan/live"}
+		],
 		"keywords": ["Aiuto", " soccorso ", "aiuto"],
 		"model_path": "m",
 		"log_file": "l.log"
@@ -40,8 +45,8 @@ func TestLoadValid(t *testing.T) {
 	if cfg.SampleRate != 16000 {
 		t.Errorf("sample_rate = %d, atteso 16000", cfg.SampleRate)
 	}
-	if cfg.DeviceID != -1 {
-		t.Errorf("device_id = %d, atteso -1 (predefinito di sistema)", cfg.DeviceID)
+	if len(cfg.Cameras) != 2 || cfg.Cameras[0].Name != "ingresso" || cfg.Cameras[1].Name != "cortile" {
+		t.Errorf("cameras = %+v, attese [ingresso cortile] con nomi ripuliti dagli spazi", cfg.Cameras)
 	}
 	if cfg.Cooldown() != 3*time.Second {
 		t.Errorf("cooldown = %v, atteso 3s come default", cfg.Cooldown())
@@ -59,7 +64,7 @@ func TestLoadValid(t *testing.T) {
 }
 
 func TestCooldownIsConfigurable(t *testing.T) {
-	path := writeConfig(t, `{"keywords":["aiuto"],"cooldown_seconds":0}`)
+	path := writeConfig(t, `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"cooldown_seconds":0}`)
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -69,7 +74,7 @@ func TestCooldownIsConfigurable(t *testing.T) {
 		t.Errorf("cooldown = %v, atteso 0", cfg.Cooldown())
 	}
 
-	path = writeConfig(t, `{"keywords":["aiuto"],"cooldown_seconds":0.5}`)
+	path = writeConfig(t, `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"cooldown_seconds":0.5}`)
 	cfg, err = Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -80,7 +85,7 @@ func TestCooldownIsConfigurable(t *testing.T) {
 }
 
 func TestAlertLogFileIsOptional(t *testing.T) {
-	path := writeConfig(t, `{"keywords":["aiuto"],"alert_log_file":""}`)
+	path := writeConfig(t, `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"alert_log_file":""}`)
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -91,7 +96,7 @@ func TestAlertLogFileIsOptional(t *testing.T) {
 }
 
 func TestLoadAbsolutePathsAreKept(t *testing.T) {
-	path := writeConfig(t, `{"keywords":["aiuto"],"model_path":"/opt/vosk","log_file":"/var/log/a.log"}`)
+	path := writeConfig(t, `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"model_path":"/opt/vosk","log_file":"/var/log/a.log"}`)
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -110,14 +115,14 @@ func TestLoadRejects(t *testing.T) {
 		name string
 		body string
 	}{
-		{"nessuna keyword", `{"keywords":[],"model_path":"m","log_file":"l"}`},
-		{"solo spazi nelle keyword", `{"keywords":["  "],"model_path":"m","log_file":"l"}`},
-		{"sample rate non supportata", `{"keywords":["aiuto"],"model_path":"m","log_file":"l","sample_rate":44100}`},
-		{"livello di log ignoto", `{"keywords":["aiuto"],"model_path":"m","log_file":"l","log_level":"verboso"}`},
-		{"model path vuoto", `{"keywords":["aiuto"],"model_path":"  ","log_file":"l"}`},
-		{"log file vuoto", `{"keywords":["aiuto"],"model_path":"m","log_file":""}`},
-		{"cooldown negativo", `{"keywords":["aiuto"],"model_path":"m","log_file":"l","cooldown_seconds":-1}`},
-		{"json malformato", `{"keywords":`},
+		{"nessuna keyword", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":[],"model_path":"m","log_file":"l"}`},
+		{"solo spazi nelle keyword", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["  "],"model_path":"m","log_file":"l"}`},
+		{"sample rate non supportata", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"model_path":"m","log_file":"l","sample_rate":44100}`},
+		{"livello di log ignoto", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"model_path":"m","log_file":"l","log_level":"verboso"}`},
+		{"model path vuoto", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"model_path":"  ","log_file":"l"}`},
+		{"log file vuoto", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"model_path":"m","log_file":""}`},
+		{"cooldown negativo", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":["aiuto"],"model_path":"m","log_file":"l","cooldown_seconds":-1}`},
+		{"json malformato", `{"cameras":[{"name":"ingresso","url":"rtsp://10.0.0.5/live"}],"keywords":`},
 	}
 
 	for _, tc := range cases {
@@ -126,6 +131,42 @@ func TestLoadRejects(t *testing.T) {
 				t.Error("Load accettato una configurazione non valida")
 			}
 		})
+	}
+}
+
+func TestLoadRejectsCameras(t *testing.T) {
+	const kw = `"keywords":["aiuto"]`
+	cases := []struct {
+		name string
+		body string
+	}{
+		{"nessuna telecamera", `{` + kw + `}`},
+		{"lista vuota", `{` + kw + `,"cameras":[]}`},
+		{"nome mancante", `{` + kw + `,"cameras":[{"url":"rtsp://10.0.0.5/live"}]}`},
+		{"nome duplicato", `{` + kw + `,"cameras":[{"name":"a","url":"rtsp://10.0.0.5/1"},{"name":"a","url":"rtsp://10.0.0.6/1"}]}`},
+		{"url mancante", `{` + kw + `,"cameras":[{"name":"a"}]}`},
+		{"schema non rtsp", `{` + kw + `,"cameras":[{"name":"a","url":"http://10.0.0.5/live"}]}`},
+		{"url senza host", `{` + kw + `,"cameras":[{"name":"a","url":"rtsp:///live"}]}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := Load(writeConfig(t, tc.body)); err == nil {
+				t.Error("Load accettato una configurazione non valida")
+			}
+		})
+	}
+}
+
+// TestCameraErrorsHidePassword verifica che un URL sbagliato non finisca nel
+// messaggio di errore, che viene stampato sul terminale.
+func TestCameraErrorsHidePassword(t *testing.T) {
+	path := writeConfig(t, `{"keywords":["aiuto"],"cameras":[{"name":"a","url":"http://admin:segreta@10.0.0.5/live"}]}`)
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("Load accettato uno schema non rtsp")
+	}
+	if strings.Contains(err.Error(), "segreta") {
+		t.Errorf("la password è nel messaggio di errore: %v", err)
 	}
 }
 

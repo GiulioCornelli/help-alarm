@@ -5,17 +5,11 @@ services:
     image: help-alarm:latest
     container_name: help-alarm
 
-    # I dispositivi ALSA dell'host: senza questi dentro il container non
-    # esiste alcun microfono. Vengono rilassati come permessi, non copiati.
-    devices:
-      - "/dev/snd:/dev/snd"
-
-    # I device node di /dev/snd appartengono a root:<gruppo audio>. Serve
-    # aggiungere quel gruppo, altrimenti l'apertura del microfono fallisce
-    # con "permission denied".
-    # Ricava il gid con:  getent group audio | cut -d: -f3
-    group_add:
-      - "${AUDIO_GID:-29}"
+    # L'audio arriva dalle telecamere IP via RTSP, decodificato da ffmpeg
+    # dentro l'immagine: non serve alcun dispositivo audio dell'host. La rete
+    # bridge predefinita raggiunge le telecamere sulla LAN; se non bastasse
+    # (per esempio con telecamere su multicast), usare:
+    # network_mode: host
 
     # Un volume vuoto viene creato da Docker con proprietà root e modalità 755,
     # quindi l'utente non-root del programma non potrebbe scrivere i log.
@@ -35,8 +29,8 @@ services:
     # il programma controllerà l'accensione di una luce.
     # restart: unless-stopped
 
-    # Ctrl+C e `docker compose stop` devono arrivare al programma, che spegne
-    # audio e log in modo ordinato.
+    # Ctrl+C e `docker compose stop` devono arrivare al programma, che ferma
+    # gli stream delle telecamere e chiude i log in modo ordinato.
     stop_signal: SIGTERM
     stop_grace_period: 10s
 

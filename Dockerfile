@@ -1,9 +1,9 @@
 # help-alarm: tutto ciò che serve è dentro l'immagine.
 #   build   -> compila il binario con cgo (Go + gcc + libreria nativa Vosk)
-#   runtime -> binario, libreria e modello linguistico, nient'altro
+#   runtime -> binario, libreria, modello linguistico e ffmpeg
 #
-# L'audio non viene "installato": i dispositivi del microfono arrivano dal
-# docker-compose con --device /dev/snd.
+# L'audio arriva dalle telecamere IP via RTSP: ffmpeg lo decodifica dentro il
+# container, quindi sull'host non serve installare nulla.
 
 # ---------------------------------------------------------------------------
 # deps: scarica la libreria nativa Vosk e il modello linguistico italiano.
@@ -73,8 +73,10 @@ RUN go build -trimpath -ldflags="-s -w" -o /out/help-alarm .
 # ---------------------------------------------------------------------------
 FROM debian:bookworm-slim AS runtime
 
+# ffmpeg riceve e decodifica l'audio RTSP delle telecamere. Vive solo qui,
+# nell'immagine: il programma lo avvia come processo, uno per telecamera.
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends libstdc++6 libasound2 \
+	&& apt-get install -y --no-install-recommends libstdc++6 ffmpeg \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& useradd --system --uid 1000 --create-home --shell /usr/sbin/nologin helpalarm
 

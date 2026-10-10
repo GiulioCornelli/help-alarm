@@ -9,23 +9,31 @@ import (
 )
 
 // Message è il testo stampato e registrato quando viene rilevata una parola
-// chiave. Il segnaposto %s riceve la parola che ha fatto scattare l'allarme,
-// così la riga dice sempre quale parola è stata udita e non una parola fissa.
-const Message = "%s rilevato, luce accesa"
+// chiave. Il primo segnaposto riceve la parola che ha fatto scattare
+// l'allarme, così la riga dice sempre quale parola è stata udita e non una
+// parola fissa; il secondo la telecamera che l'ha sentita.
+const Message = "%s rilevato da %s, luce accesa"
 
-// Cooldown sopprime gli allarmi ripetuti per la stessa parola chiave entro
-// una finestra temporale.
+// Cooldown sopprime gli allarmi ripetuti per la stessa parola chiave, sulla
+// stessa telecamera, entro una finestra temporale.
 //
 // Serve perché Vosk emette una trascrizione ogni 100 ms: mentre la persona sta
 // ancora parlando, la parola resta dentro l'ipotesi parziale e farebbe
 // scattare l'allarme una volta per ogni blocco di audio. Senza questo filtro un
 // solo "aiuto" produrrebbe una raffica di righe identiche e il segnale reale
 // andrebbe perso nel rumore.
+//
+// Il filtro è per telecamera: un "aiuto" sentito dall'ingresso non deve
+// zittire lo stesso "aiuto" sentito in cortile un secondo dopo.
 type Cooldown struct {
 	window time.Duration
 
 	mu   sync.Mutex
-	last map[string]time.Time
+	last map[cooldownKey]time.Time
+}
+
+type cooldownKey struct {
+	camera, keyword string
 }
 
 // NewCooldown restituisce un Cooldown con la finestra indicata. Una finestra
@@ -34,25 +42,26 @@ type Cooldown struct {
 func NewCooldown(window time.Duration) *Cooldown {
 	return &Cooldown{
 		window: window,
-		last:   make(map[string]time.Time),
+		last:   make(map[cooldownKey]time.Time),
 	}
 }
 
-// Allow indica se per la parola chiave keyword all'istante now deve essere
-// emesso un allarme. Restituisce false quando la stessa parola chiave ha già
-// fatto scattare l'allarme meno di window fa, e in caso contrario registra il
-// nuovo istante.
-func (c *Cooldown) Allow(keyword string, now time.Time) bool {
+// Allow indica se per la parola chiave keyword sentita dalla telecamera
+// camera all'istante now deve essere emesso un allarme. Restituisce false
+// quando la stessa coppia ha già fatto scattare l'allarme meno di window fa, e
+// in caso contrario registra il nuovo istante.
+func (c *Cooldown) Allow(camera, keyword string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if c.window <= 0 {
 		return true
 	}
-	if prev, ok := c.last[keyword]; ok && now.Sub(prev) < c.window {
+	key := cooldownKey{camera: camera, keyword: keyword}
+	if prev, ok := c.last[key]; ok && now.Sub(prev) < c.window {
 		return false
 	}
-	c.last[keyword] = now
+	c.last[key] = now
 	return true
 }
 
@@ -64,7 +73,20 @@ func (c *Cooldown) Allow(keyword string, now time.Time) bool {
 // restano in memoria, per il confronto, e non vengono registrate.
 type Event struct {
 	Keyword string
-	At      time.Time
+	// Camera è il nome configurato della telecamera che ha sentito la
+	// parola chiave.
+	Camera string
+	// Host è l'indirizzo IP (o il nome) della telecamera, senza credenziali.
+	Host string
+	At   time.Time
+}
+
+// source descrive la telecamera per la riga di allarme: nome e indirizzo.
+func (e Event) source() string {
+	if e.Host == "" || e.Host == e.Camera {
+		return e.Camera
+	}
+	return e.Camera + " (" + e.Host + ")"
 }
 
 // Alerter reagisce a una parola chiave rilevata.
@@ -107,16 +129,19 @@ func (t *TerminalAlerter) Trigger(e Event) error {
 	if ts.IsZero() {
 		ts = t.now()
 	}
-	msg := fmt.Sprintf(Message, e.Keyword)
+	msg := fmt.Sprintf(Message, e.Keyword, e.source())
 
 	if _, err := fmt.Fprintf(t.out, "%s %s\n", ts.Format("15:04:05"), msg); err != nil {
 		return fmt.Errorf("alert: scrittura su terminale fallita: %w", err)
 	}
 
-	// Nessun altro testo oltre alla parola chiave: vedi la nota su Event.
+	// Nessun altro testo oltre alla parola chiave e alla telecamera: vedi
+	// la nota su Event.
 	t.log.Info(msg,
 		slog.Time("timestamp", ts),
 		slog.String("keyword", e.Keyword),
+		slog.String("camera", e.Camera),
+		slog.String("camera_ip", e.Host),
 	)
 	return nil
 }
