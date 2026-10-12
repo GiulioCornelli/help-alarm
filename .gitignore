@@ -9,3 +9,6 @@
 /third_party/vosk/*.so
 /third_party/vosk/*.h
 /models/
+
+
+appunti.md
